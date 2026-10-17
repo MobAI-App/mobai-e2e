@@ -1,0 +1,52 @@
+{
+  "name": "@mobai-app/e2e",
+  "version": "0.1.1",
+  "description": "MobAI for tester-army e2e: a device engine and a reporter for the MobAI testing dashboard",
+  "keywords": [
+    "e2e",
+    "testing",
+    "mobile-testing",
+    "ios",
+    "android",
+    "mobai"
+  ],
+  "license": "Apache-2.0",
+  "homepage": "https://mobai.run",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MobAI-App/mobai-e2e.git"
+  },
+  "bugs": "https://github.com/MobAI-App/mobai-e2e/issues",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=22.12"
+  },
+  "scripts": {
+    "build": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\" && tsc --project tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "prepublishOnly": "npm run typecheck && npm test && npm run build"
+  },
+  "dependencies": {
+    "fast-png": "8.0.0"
+  },
+  "peerDependencies": {
+    "e2e": ">=0.19.0 <1"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.5",
+    "e2e": "0.19.0",
+    "typescript": "5.9.3",
+    "vitest": "5.0.4"
+  }
+}
