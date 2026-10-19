@@ -1,6 +1,6 @@
 {
   "name": "@mobai-app/e2e",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "MobAI for tester-army e2e: a device engine and a reporter for the MobAI testing dashboard",
   "keywords": [
     "e2e",
