@@ -14,7 +14,8 @@ import { toBundle, type BundleCase } from './reporter.ts';
 
 /** A local run's case: the dashboard bundle's, plus the case's recording and device log. */
 interface LocalCase extends BundleCase {
-  videos?: { path: string; format: 'mp4' | 'mjpeg'; fps?: number; bytes: number }[];
+  /** startSec: where the case begins in a farm session's recording. */
+  videos?: { path: string; format: 'mp4' | 'mjpeg'; fps?: number; bytes: number; startSec?: number }[];
   deviceLog?: { path: string; bytes: number };
 }
 
@@ -32,9 +33,10 @@ export function localRunTarget(env: Readonly<Record<string, string | undefined>>
 /**
  * Writes the run into `dir`: its files under `artifacts/` at their report
  * paths, then `run.json`, last and whole, so the app never commits half a run.
- * Returns the summary line.
+ * Returns the summary line. videoStarts says where each farm recording (by
+ * report path) reaches its case.
  */
-export async function writeLocalRun(run: FinishedRun, target: { dir: string; runId: string }, projectName: string): Promise<string> {
+export async function writeLocalRun(run: FinishedRun, target: { dir: string; runId: string }, projectName: string, videoStarts: ReadonlyMap<string, number> = new Map()): Promise<string> {
   const { bundle, files } = toBundle(run.report, { projectName });
   if (bundle.cases.length === 0) return 'not saved locally: no test ran';
   bundle.runId = target.runId;
@@ -70,7 +72,8 @@ export async function writeLocalRun(run: FinishedRun, target: { dir: string; run
       continue;
     }
     const format = path.posix.extname(file.path).toLowerCase() === '.mjpeg' ? 'mjpeg' : 'mp4';
-    (c.videos ??= []).push({ path: file.path, format, ...(format === 'mjpeg' ? { fps: MJPEG_FPS } : {}), bytes });
+    const startSec = videoStarts.get(file.path);
+    (c.videos ??= []).push({ path: file.path, format, ...(format === 'mjpeg' ? { fps: MJPEG_FPS } : {}), bytes, ...(startSec === undefined ? {} : { startSec }) });
   }
   const runJson = path.join(target.dir, 'run.json');
   await writeFile(`${runJson}.part`, JSON.stringify(bundle, null, 2));

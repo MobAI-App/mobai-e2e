@@ -11,6 +11,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import type { FinishedRun, Report, Reporter, ReporterSummary } from 'e2e';
 import { message, sanitizeFilename } from './errors.ts';
+import { FARM_LOG_ID, withFarmFiles } from './farmfiles.ts';
 import { describeHold, engineHold, holdFailed, parseHold } from './hold.ts';
 import { localRunTarget, writeLocalRun } from './localrun.ts';
 
@@ -183,6 +184,8 @@ function uploadable(artifact: ReportArtifact): BundleFile['type'] | undefined {
   const ext = path.posix.extname(artifact.path).toLowerCase();
   if (artifact.kind === 'screenshot' && ['.png', '.jpg', '.jpeg'].includes(ext)) return 'screenshot';
   if (artifact.kind === 'video' && (ext === '.mp4' || ext === '.mjpeg')) return 'video';
+  // A device farm's session log (see farmfiles.ts) is the device log.
+  if (artifact.kind === 'log' && ext === '.txt' && artifact.id.startsWith(FARM_LOG_ID)) return 'device_log';
   if (artifact.kind === 'log' && ext === '.txt') return 'step_log';
   return undefined;
 }
@@ -555,18 +558,21 @@ export function mobaiReporter(options: MobaiReporterOptions = {}): Reporter {
       // The hold first: the failed screen should be held as soon as possible,
       // and must not wait on (or be skipped by) the upload.
       const held = await settle(run, options, env, signal);
-      return [...held, ...(await saveLocal(run, env)), ...(await upload(run, options, env, signal))];
+      // A device farm hands its session recording and log over only now that
+      // the sessions have ended; they ride the failed attempts on farm devices.
+      const farm = await withFarmFiles(run, { settings: engineHold(), baseUrl: options.hostUrl, env, signal });
+      return [...held, ...farm.notes, ...(await saveLocal(farm.run, env, farm.videoStarts)), ...(await upload(farm.run, options, env, signal))];
     },
   };
 }
 
 /** Saves the run into the MobAI app's local history, only when the app asked (see localrun.ts). */
-async function saveLocal(run: FinishedRun, env: Readonly<Record<string, string | undefined>>): Promise<ReporterSummary> {
+async function saveLocal(run: FinishedRun, env: Readonly<Record<string, string | undefined>>, videoStarts: ReadonlyMap<string, number>): Promise<ReporterSummary> {
   const target = localRunTarget(env);
   if (target === undefined) return [];
   try {
     const projectName = findProjectLink(run.projectRoot)?.name ?? path.basename(run.projectRoot);
-    return [{ label: 'MobAI', text: await writeLocalRun(run, target, projectName) }];
+    return [{ label: 'MobAI', text: await writeLocalRun(run, target, projectName, videoStarts) }];
   } catch (cause) {
     return [{ label: 'MobAI', text: `not saved locally: ${message(cause)}` }];
   }

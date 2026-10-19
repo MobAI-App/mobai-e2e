@@ -72,6 +72,17 @@ export interface CloudSession {
   readonly virtual?: boolean;
 }
 
+/** An ended farm session's recording and device log, as host paths (POST /e2e/cloud/files). */
+export interface FarmSessionFiles {
+  readonly deviceId: string;
+  readonly video?: string;
+  /** When the recording began, ISO; absent when the farm does not say. */
+  readonly videoStartedAt?: string;
+  readonly deviceLog?: string;
+  readonly consoleUrl?: string;
+  readonly error?: string;
+}
+
 /** A device held open after a failed test (POST /devices/{id}/e2e/hold). */
 export interface HeldDevice {
   readonly deviceId: string;
@@ -488,6 +499,15 @@ export class HostClient {
   /** Ends every farm session the run opened. */
   cloudEnd(runId: string, signal?: AbortSignal): Promise<{ sessions: CloudSession[] }> {
     return this.post('/e2e/cloud/end', { runId }, signal, 'end the farm sessions');
+  }
+
+  /**
+   * Downloads the recording and device log of farm sessions the run ended, to
+   * the host. The host waits for the farms to finish processing them, so this
+   * can take minutes.
+   */
+  cloudFiles(runId: string, deviceIds: readonly string[], signal?: AbortSignal): Promise<{ files: FarmSessionFiles[] }> {
+    return this.post('/e2e/cloud/files', { runId, deviceIds }, signal, 'fetch the farm recordings');
   }
 
   /** Enrolls, clears, or sends one attempt to the simulated biometric sensor. */
