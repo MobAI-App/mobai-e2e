@@ -166,6 +166,16 @@ function settleMs(settle: MobaiOptions['settle']): number {
   return quiet;
 }
 
+function checkLaunchEnvironment(environment: MobaiOptions['launchEnvironment'], platform: MobaiOptions['platform']): void {
+  if (environment === undefined) return;
+  if (platform === 'android') {
+    throw new ConfigurationError('INVALID_CONFIG', 'mobai: `launchEnvironment` is iOS only; Android has no per-process environment, pass intent extras with app.launchArguments');
+  }
+  if (typeof environment !== 'object' || environment === null || Array.isArray(environment) || Object.values(environment).some((value) => typeof value !== 'string')) {
+    throw new ConfigurationError('INVALID_CONFIG', 'mobai: `launchEnvironment` must map variable names to strings');
+  }
+}
+
 function tellHarness(call: () => void): void {
   try {
     call();
@@ -210,6 +220,7 @@ export class MobaiSurface {
         throw new ConfigurationError('INVALID_CONFIG', `mobai: \`deviceLogs.level\` must be 'error', 'warning' or 'info', got ${JSON.stringify(level)}`);
       }
     }
+    checkLaunchEnvironment(options.launchEnvironment, options.platform);
     this.transitionMs = transitionMs(options.transition);
     this.settleMs = settleMs(options.settle);
     this.pool = new DevicePool(options, () => this.hostClient(process.env));
@@ -919,13 +930,27 @@ export class MobaiSurface {
     this.screenReplaced();
   }
 
-  async openApp(app: string, options: { relaunch?: boolean; launchArguments?: readonly string[] | undefined }, signal: AbortSignal): Promise<void> {
+  async openApp(
+    app: string,
+    options: { relaunch?: boolean; launchArguments?: readonly string[] | undefined; launchEnvironment?: Readonly<Record<string, string>> | undefined },
+    signal: AbortSignal,
+  ): Promise<void> {
     const relaunch = options.relaunch === true;
-    const launchArguments = options.launchArguments ?? (relaunch && app === this.pinnedApp ? this.app.launchArguments : undefined);
+    const pinned = relaunch && app === this.pinnedApp;
+    const launchArguments = options.launchArguments ?? (pinned ? this.app.launchArguments : undefined);
+    const launchEnvironment = options.launchEnvironment ?? (pinned ? this.options.launchEnvironment : undefined);
+    if (launchEnvironment !== undefined && this.platform === 'android') {
+      throw unsupported('Android has no per-process environment; pass intent extras with launchArguments, e.g. ["--es", "KEY", "value"]');
+    }
     await this.command(`open ${app}`, async (client, device) => {
       if (relaunch) await client.killApp(device, app, signal).catch(() => undefined);
       // The test's next step waits for the app's screen, so the launch need not.
-      await client.launchApp(device, app, { ...(launchArguments === undefined ? {} : { arguments: launchArguments }), noWait: true }, signal);
+      await client.launchApp(
+        device,
+        app,
+        { ...(launchArguments === undefined ? {} : { arguments: launchArguments }), ...(launchEnvironment === undefined ? {} : { environment: launchEnvironment }), noWait: true },
+        signal,
+      );
     }, signal);
     this.screenReplaced();
   }

@@ -32,6 +32,8 @@ export interface OpenAppOptions {
   readonly relaunch?: boolean;
   /** Arguments this launch hands the app; replaces the target's `app.launchArguments` for a relaunch of the pinned app. */
   readonly launchArguments?: readonly string[];
+  /** Environment variables this launch hands the app (iOS); replaces the engine's `launchEnvironment` for a relaunch of the pinned app. */
+  readonly launchEnvironment?: Readonly<Record<string, string>>;
 }
 
 export interface ForegroundApp {

@@ -198,7 +198,7 @@ test('dark mode', async ({ app, device, screen }) => {
 | Method | Description |
 | --- | --- |
 | `installApp(path?)` | Install an `.app`, `.ipa`, or `.apk` (defaults to the target's `app.appPath`) |
-| `openApp(app, { relaunch? })` | Bring an app to the foreground, or restart it |
+| `openApp(app, { relaunch?, launchArguments?, launchEnvironment? })` | Bring an app to the foreground, or restart it with this launch's arguments and environment variables (environment: iOS) |
 | `closeApp(app?)` | Close an app |
 | `clearAppState(app?)` | Erase app data |
 | `clearKeychain()` | Clear the keychain (iOS simulators) |
@@ -272,6 +272,7 @@ In CI, set `MOBAI_API_KEY` so the host can use your MobAI plan without an intera
 | `transition` | `500` | Milliseconds to let a control introduced by the previous action settle before acting on it |
 | `settle` | `150` | Milliseconds after an agent action before the next screen inspection, or `false` |
 | `keyboardNodes` | `false` | Include soft-keyboard keys in the screen tree |
+| `launchEnvironment` | None | Environment variables for every fresh launch of the target's app (iOS), as `app.launchArguments` are for arguments |
 
 ## Run tests from the MobAI editor
 
