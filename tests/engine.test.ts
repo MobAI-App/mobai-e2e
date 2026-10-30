@@ -108,9 +108,7 @@ beforeAll(async () => {
   });
   artifactsDir = mkdtempSync(path.join(tmpdir(), 'mobai-e2e-'));
   engine = mobai({ platform: 'ios', transition: 0, settle: false });
-  const env = {};
-  const prepared = await engine.prepare!({ runId: 'run', targetName: 'phone', projectRoot: artifactsDir, app: { bundleId: 'com.example.app' }, slots: 1, env, signal: new AbortController().signal, headed: false, log: () => undefined });
-  await engine.init!({ runId: 'run', targetName: 'phone', projectRoot: artifactsDir, app: { bundleId: 'com.example.app' }, env: { ...env, ...(prepared?.env ?? {}) }, headed: false, workerSlot: 0, signal: new AbortController().signal, log: () => undefined });
+  await start(engine);
 });
 
 afterAll(() => {
@@ -122,7 +120,18 @@ beforeEach(async () => {
   calls.length = 0;
   screen = okScreen(false);
   await engine.endAttempt!({ signal: new AbortController().signal, timeoutMs: 1000 });
-  await engine.startAttempt!({
+  await startAttempt(engine);
+});
+
+/** Prepares and initialises an engine for the pinned app on worker slot 0. */
+async function start(handle: EngineHandle): Promise<void> {
+  const env = {};
+  const prepared = await handle.prepare!({ runId: 'run', targetName: 'phone', projectRoot: artifactsDir, app: { bundleId: 'com.example.app' }, slots: 1, env, signal: new AbortController().signal, headed: false, log: () => undefined });
+  await handle.init!({ runId: 'run', targetName: 'phone', projectRoot: artifactsDir, app: { bundleId: 'com.example.app' }, env: { ...env, ...(prepared?.env ?? {}) }, headed: false, workerSlot: 0, signal: new AbortController().signal, log: () => undefined });
+}
+
+async function startAttempt(handle: EngineHandle): Promise<void> {
+  await handle.startAttempt!({
     attemptId: 'attempt',
     artifactsDir,
     resolveSecret: async () => '',
@@ -131,7 +140,7 @@ beforeEach(async () => {
     navigation: () => undefined,
     environment: () => undefined,
   });
-});
+}
 
 describe('mobai engine', () => {
   it('declares its capabilities and prepared the device pool', () => {
@@ -218,6 +227,21 @@ describe('mobai engine', () => {
     await expect(engine.keyboard!.press('Control+a', operation())).rejects.toMatchObject({ code: 'UNSUPPORTED_CAPABILITY' });
   });
 
+  it('hands the launchEnvironment option to every fresh launch of the pinned app', async () => {
+    const withEnvironment = mobai({ platform: 'ios', transition: 0, settle: false, launchEnvironment: { FEATUREFLAGS_ENABLED: 'UIKit/UIPreferences' } });
+    await start(withEnvironment);
+    await startAttempt(withEnvironment);
+    calls.length = 0;
+    await withEnvironment.session!.restart!(operation());
+    expect(calls.find((c) => c.path.endsWith('/launch-app'))?.body).toEqual({ bundleId: 'com.example.app', environment: { FEATUREFLAGS_ENABLED: 'UIKit/UIPreferences' }, noWait: true });
+    await withEnvironment.endAttempt!({ signal: new AbortController().signal, timeoutMs: 1000 });
+  });
+
+  it('refuses launchEnvironment on Android', () => {
+    expect(() => mobai({ platform: 'android', launchEnvironment: { KEY: 'value' } })).toThrow(/iOS only/);
+    expect(() => mobai({ platform: 'ios', launchEnvironment: { KEY: 1 as unknown as string } })).toThrow(/map variable names to strings/);
+  });
+
   it('relaunches the pinned app on restart', async () => {
     await engine.session!.restart!(operation());
     expect(calls.map((c) => path.basename(c.path))).toEqual(['kill-app', 'launch-app']);
@@ -265,6 +289,17 @@ describe('mobai engine', () => {
       { sensor: 'faceid', action: 'nomatch' },
     ]);
     await expect(device.setBiometrics('fingerprint', 'match')).rejects.toMatchObject({ code: 'ENGINE_FAILURE' });
+  });
+
+  it('opens an app with this launch\'s arguments and environment', async () => {
+    const { device } = fixture();
+    await device.openApp('com.example.app', { relaunch: true, launchArguments: ['-UIAnimationDragCoefficient', '0.1'], launchEnvironment: { FEATUREFLAGS_ENABLED: 'UIKit/UIPreferences' } });
+    expect(calls.find((c) => c.path.endsWith('/launch-app'))?.body).toEqual({
+      bundleId: 'com.example.app',
+      arguments: ['-UIAnimationDragCoefficient', '0.1'],
+      environment: { FEATUREFLAGS_ENABLED: 'UIKit/UIPreferences' },
+      noWait: true,
+    });
   });
 
   it('drags along a path, each leg at its own speed', async () => {

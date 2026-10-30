@@ -48,6 +48,13 @@ export interface MobaiOptions {
   /** Whether `observe` keeps the soft keyboard's keys in the tree. Default `false`. */
   readonly keyboardNodes?: boolean | undefined;
   /**
+   * Environment variables every fresh launch of the target's app gets
+   * (`app.open()`, `app.restart()`, `app.clearState()`), as the target's
+   * `app.launchArguments` are for arguments. iOS only: Android has no
+   * per-process environment, so pass intent extras with `app.launchArguments`.
+   */
+  readonly launchEnvironment?: Readonly<Record<string, string>> | undefined;
+  /**
    * Keep a failed test's device open, on the screen the test stopped at, so
    * the failure can be inspected from the MobAI desktop app: seconds, or
    * `"90s"`, `"10m"`, `"1h"`, up to 2 hours. `MOBAI_E2E_HOLD` by default;
@@ -105,6 +112,7 @@ export const MOBAI_OPTION_KEYS: readonly string[] = Object.keys({
   transition: true,
   settle: true,
   keyboardNodes: true,
+  launchEnvironment: true,
   holdOnFailure: true,
   cloud: true,
   deviceLogs: true,
